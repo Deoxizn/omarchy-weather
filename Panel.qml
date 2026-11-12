@@ -410,6 +410,13 @@ Panel {
     return Model.dayName(dateString, function(date) { return locale.standaloneDayName(date.getDay(), Locale.LongFormat) })
   }
 
+  // Short day name for the horizontal forecast columns ("Wed"). The full
+  // name doesn't fit a narrow day column.
+  function dayAbbrev(dateString) {
+    var locale = Qt.locale(Commons.I18n.formatLocale)
+    return Model.dayName(dateString, function(date) { return locale.standaloneDayName(date.getDay(), Locale.ShortFormat) })
+  }
+
   // Bare degree value (no unit letter), used in the forecast row.
   function bareTempForDay(day, kind) {
     return Model.bareTempForDay(day, kind, useImperial, Commons.I18n.formatNumber)
