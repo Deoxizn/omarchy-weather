@@ -34,6 +34,26 @@ function effectiveLocation(configured, detected) {
   return isAutoLocation(configured) && detected ? detected : configured
 }
 
+// The secondary location is a plain setting string: a place name ("Tucson",
+// "Tucson, AZ") or coordinates ("32.22,-110.97"). Coordinates win when the
+// string is a lat,lon pair, so a name that happens to look numeric still
+// resolves as coordinates. Empty means no secondary location.
+function parseSecondaryLocation(text) {
+  var unset = { name: "", latitude: null, longitude: null }
+  var value = String(text || "").replace(/^\s+|\s+$/g, "")
+  if (value === "") return unset
+
+  var coords = value.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/)
+  if (coords) {
+    return {
+      name: "",
+      latitude: parseFloat(coords[1]),
+      longitude: parseFloat(coords[2])
+    }
+  }
+  return { name: value, latitude: null, longitude: null }
+}
+
 // wttr.in path segment for a configured location: exact coordinates when
 // both are present, the URL-encoded name as a fallback (hand-edited
 // weather.loc files may only carry a name), empty for IP auto-detect.
@@ -155,7 +175,7 @@ function openMeteoForecastDays(dailyForecastReport, todayString) {
   if (!daily || !daily.time) return []
 
   var result = []
-  for (var i = 0; i < daily.time.length && result.length < 3; ++i) {
+  for (var i = 0; i < daily.time.length && result.length < 10; ++i) {
     var date = daily.time[i]
     if (!isFutureForecastDate(date, todayString)) continue
 
@@ -215,7 +235,7 @@ function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
 function wttrNextForecastDays(report, todayString) {
   var days = report && report.weather ? report.weather : []
   var result = []
-  for (var i = 0; i < days.length && result.length < 3; ++i) {
+  for (var i = 0; i < days.length && result.length < 10; ++i) {
     if (isFutureForecastDate(days[i].date, todayString)) result.push(days[i])
   }
   return result
@@ -290,6 +310,7 @@ if (typeof module !== "undefined") {
     parseLocationFile: parseLocationFile,
     isAutoLocation: isAutoLocation,
     effectiveLocation: effectiveLocation,
+    parseSecondaryLocation: parseSecondaryLocation,
     wttrLocationQuery: wttrLocationQuery,
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,

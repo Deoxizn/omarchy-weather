@@ -104,6 +104,16 @@ Panel {
     Qt.callLater(refresh)
   }
 
+  // A new secondary location refetches just the secondary, leaving the
+  // main report alone. Clearing it stops both secondary processes.
+  onSecondaryLocationQueryChanged: {
+    secondaryForecastRetries = 0
+    secondaryDailyForecastRetries = 0
+    secondaryForecastProc.running = false
+    secondaryDailyForecastProc.running = false
+    Qt.callLater(refreshSecondary)
+  }
+
   property FileView locationFile: FileView {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/settings/weather.json"
     watchChanges: true
@@ -160,6 +170,28 @@ Panel {
   readonly property string reportWind:      current ? (useImperial ? (displayNumber(current.windspeedMiles) + " mph") : (displayNumber(current.windspeedKmph) + " km/h")) : ""
   readonly property string reportHumidity:  current ? (displayNumber(current.humidity) + "%") : ""
 
+  // Secondary location, from the widget setting (a place name like
+  // "Tucson" or "lat,lon"). Empty means no secondary location. Fetched
+  // the same way as the main one: wttr.in for current conditions + area,
+  // Open-Meteo for the daily forecast.
+  readonly property var secondaryLocationState: Model.parseSecondaryLocation(setting("secondaryLocation", ""))
+  readonly property string secondaryLocationQuery: Model.wttrLocationQuery(secondaryLocationState.name, secondaryLocationState.latitude, secondaryLocationState.longitude)
+  property var secondaryReport: null
+  property var secondaryDailyForecastReport: null
+  property string secondaryLabel: ""
+  property int secondaryForecastRetries: 0
+  property int secondaryDailyForecastRetries: 0
+  readonly property bool secondaryHasCoordinates: !isNaN(parseFloat(String(secondaryLocationState.latitude))) && !isNaN(parseFloat(String(secondaryLocationState.longitude)))
+  readonly property var secondaryOpenMeteoCurrent: Model.openMeteoCurrentCondition(secondaryDailyForecastReport)
+  readonly property var secondaryCurrent: (secondaryHasCoordinates && secondaryOpenMeteoCurrent) ? secondaryOpenMeteoCurrent : ((secondaryReport && secondaryReport.current_condition && secondaryReport.current_condition[0]) ? secondaryReport.current_condition[0] : secondaryOpenMeteoCurrent)
+  readonly property var secondaryAreaInfo: secondaryReport && secondaryReport.nearest_area && secondaryReport.nearest_area[0] ? secondaryReport.nearest_area[0] : null
+  readonly property var secondaryForecastDays: Model.buildForecastDays(secondaryReport, secondaryDailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  readonly property string secondaryLocationName: secondaryLocationState.name !== "" ? secondaryLocationState.name : (secondaryAreaInfo && secondaryAreaInfo.areaName && secondaryAreaInfo.areaName[0] ? secondaryAreaInfo.areaName[0].value : "")
+  readonly property string secondaryTempNum: secondaryCurrent ? displayNumber(useImperial ? secondaryCurrent.temp_F : secondaryCurrent.temp_C) : ""
+  readonly property string secondaryFeels: secondaryCurrent ? formatTemp(useImperial ? secondaryCurrent.FeelsLikeF : secondaryCurrent.FeelsLikeC) : ""
+  readonly property string secondaryWind: secondaryCurrent ? (useImperial ? (displayNumber(secondaryCurrent.windspeedMiles) + " mph") : (displayNumber(secondaryCurrent.windspeedKmph) + " km/h")) : ""
+  readonly property string secondaryHumidity: secondaryCurrent ? (displayNumber(secondaryCurrent.humidity) + "%") : ""
+
   // The report's numbers arrive as strings ("13"), and blank when missing.
   function displayNumber(value) {
     if (value === undefined || value === null || value === "") return ""
@@ -181,12 +213,23 @@ Panel {
     // for the slow wttr response. Without them it's a no-op until wttr
     // reports the area.
     refreshDailyForecast(null)
+    refreshSecondary()
   }
 
   function detectLocation() {
     if (locationProc.running) return
     detectingLocation = true
     locationProc.running = true
+  }
+
+  function openMeteoForecastUrl(lat, lon) {
+    return "https://api.open-meteo.com/v1/forecast"
+      + "?latitude=" + encodeURIComponent(String(lat))
+      + "&longitude=" + encodeURIComponent(String(lon))
+      + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+      + "&forecast_days=11"
+      + "&timezone=auto"
   }
 
   function refreshDailyForecast(sourceReport) {
@@ -202,15 +245,35 @@ Panel {
     }
     if (isNaN(lat) || isNaN(lon)) return
 
-    var url = "https://api.open-meteo.com/v1/forecast"
-      + "?latitude=" + encodeURIComponent(String(lat))
-      + "&longitude=" + encodeURIComponent(String(lon))
-      + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
-      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
-      + "&forecast_days=4"
-      + "&timezone=auto"
-    dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
+    dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", openMeteoForecastUrl(lat, lon)]
     dailyForecastProc.running = true
+  }
+
+  // ---- Secondary location. Same two-source fetch as the main one, on
+  //      its own processes so a slow secondary never blocks the main view.
+  function refreshSecondary() {
+    if (secondaryLocationQuery === "") return
+    secondaryForecastRetries = 0
+    secondaryDailyForecastRetries = 0
+    if (!secondaryForecastProc.running) secondaryForecastProc.running = true
+    refreshSecondaryDailyForecast(null)
+  }
+
+  function refreshSecondaryDailyForecast(sourceReport) {
+    if (secondaryDailyForecastProc.running) return
+
+    var lat = parseFloat(String(root.secondaryLocationState.latitude))
+    var lon = parseFloat(String(root.secondaryLocationState.longitude))
+    if (isNaN(lat) || isNaN(lon)) {
+      var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.secondaryAreaInfo
+      if (!area) return
+      lat = parseFloat(String(area.latitude || ""))
+      lon = parseFloat(String(area.longitude || ""))
+    }
+    if (isNaN(lat) || isNaN(lon)) return
+
+    secondaryDailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", openMeteoForecastUrl(lat, lon)]
+    secondaryDailyForecastProc.running = true
   }
 
   // ---- Location editing. Clicking the location label swaps it for a search
@@ -448,6 +511,81 @@ Panel {
         } catch (e) {
           // Keep last-good daily forecast visible, but try again shortly.
           root.scheduleDailyForecastRetry()
+        }
+      }
+    }
+  }
+
+  // Secondary wttr.in fetch. Same shape as the main one, but its area is
+  // only used to drive the secondary Open-Meteo fetch, never the bar icon.
+  Process {
+    id: secondaryForecastProc
+    command: ["curl", "-fsS", "--max-time", "10", "https://wttr.in/" + root.secondaryLocationQuery + "?format=j1"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var raw = String(text || "").trim()
+        if (!raw) {
+          root.scheduleSecondaryForecastRetry()
+          return
+        }
+        try {
+          var parsed = JSON.parse(raw)
+          root.secondaryReport = parsed
+          if (!root.secondaryHasCoordinates)
+            root.secondaryLabel = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.secondaryLabel)
+          root.secondaryForecastRetries = 0
+          if (!root.secondaryHasCoordinates)
+            root.refreshSecondaryDailyForecast(parsed)
+        } catch (e) {
+          root.scheduleSecondaryForecastRetry()
+        }
+      }
+    }
+  }
+
+  function scheduleSecondaryForecastRetry() {
+    if (secondaryForecastRetries >= 3) return
+    secondaryForecastRetries++
+    secondaryForecastRetryTimer.restart()
+  }
+
+  Timer {
+    id: secondaryForecastRetryTimer
+    interval: 2500
+    onTriggered: if (!secondaryForecastProc.running) secondaryForecastProc.running = true
+  }
+
+  function scheduleSecondaryDailyForecastRetry() {
+    if (secondaryDailyForecastRetries >= 3) return
+    secondaryDailyForecastRetries++
+    secondaryDailyForecastRetryTimer.restart()
+  }
+
+  Timer {
+    id: secondaryDailyForecastRetryTimer
+    interval: 2500
+    onTriggered: root.refreshSecondaryDailyForecast(null)
+  }
+
+  Process {
+    id: secondaryDailyForecastProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var raw = String(text || "").trim()
+        if (!raw) {
+          root.scheduleSecondaryDailyForecastRetry()
+          return
+        }
+        try {
+          var parsed = JSON.parse(raw)
+          var parsedCurrent = Model.openMeteoCurrentCondition(parsed)
+          root.secondaryDailyForecastReport = parsed
+          root.secondaryLabel = Model.currentIcon(parsedCurrent, root.secondaryLabel)
+          root.secondaryDailyForecastRetries = 0
+        } catch (e) {
+          root.scheduleSecondaryDailyForecastRetry()
         }
       }
     }
@@ -868,69 +1006,146 @@ Panel {
         opacity: 0.12
       }
 
-      // ---- Forecast row: each cell has the day icon left of a day-name + hi/lo column.
-      //      Wrapped in an Item so the block of cells can be centered within the popup.
-      Item {
+      // ---- Forecast list: ten days, one row per day.
+      ForecastList {
         visible: root.forecastDays.length > 0
         width: parent.width
-        height: forecastRow.height
+        days: root.forecastDays
+        panel: root
+      }
+
+      // ---- Secondary location: its own compact hero + forecast list,
+      //      shown only while a secondary location is set.
+      Rectangle {
+        visible: root.secondaryLocationQuery !== "" && (root.secondaryCurrent || root.secondaryForecastDays.length > 0)
+        width: parent.width
+        height: Style.spacing.hairline
+        color: root.bar.foreground
+        opacity: 0.12
+      }
+
+      Column {
+        visible: root.secondaryLocationQuery !== "" && (root.secondaryCurrent || root.secondaryForecastDays.length > 0)
+        width: parent.width
+        spacing: Style.space(10)
 
         Row {
-          id: forecastRow
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(44)
+          width: parent.width
+          spacing: Style.space(8)
 
-          Repeater {
-            model: root.forecastDays
+          Text {
+            text: ""  // nf-fa-map_marker
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          Text {
+            textFormat: Text.PlainText
+            text: (root.secondaryLocationName || "").toUpperCase()
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            font.letterSpacing: 1
+            anchors.verticalCenter: parent.verticalCenter
+          }
 
-            Row {
-              required property var modelData
-              required property int index
-              spacing: Style.space(10)
+          Item { width: Style.space(8); height: 1 }
 
-              Text {
-                textFormat: Text.PlainText
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.dayIcon(modelData)
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.display
-              }
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.secondaryLabel || "—"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.display
+          }
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.secondaryTempNum || "—"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.title
+            font.bold: true
+          }
+          Text {
+            textFormat: Text.PlainText
+            text: root.secondaryCurrent ? root.tempUnit : ""
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+            anchors.verticalCenter: parent.verticalCenter
+          }
+        }
 
-              Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(2)
+        Row {
+          visible: !!root.secondaryCurrent
+          spacing: Style.space(36)
 
-                Text {
-                  textFormat: Text.PlainText
-                  text: root.dayName(modelData.date).toUpperCase()
-                  color: Qt.darker(root.bar.foreground, 1.4)
-                  font.family: root.bar.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.letterSpacing: 1
-                }
-
-                Row {
-                  spacing: Style.space(6)
-
-                  Text {
-                    textFormat: Text.PlainText
-                    text: root.bareTempForDay(modelData, "max")
-                    color: root.bar.foreground
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
-                  }
-                  Text {
-                    textFormat: Text.PlainText
-                    text: root.bareTempForDay(modelData, "min")
-                    color: Qt.darker(root.bar.foreground, 1.5)
-                    font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
-                  }
-                }
-              }
+          Column {
+            spacing: Style.space(5)
+            Text {
+              text: Commons.I18n.t("weather.feels")
+              textFormat: Text.PlainText
+              color: Qt.darker(root.bar.foreground, 1.5)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.letterSpacing: 1
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: root.secondaryFeels
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.title
             }
           }
+
+          Column {
+            spacing: Style.space(5)
+            Text {
+              text: Commons.I18n.t("weather.wind")
+              textFormat: Text.PlainText
+              color: Qt.darker(root.bar.foreground, 1.5)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.letterSpacing: 1
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: root.secondaryWind
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.title
+            }
+          }
+
+          Column {
+            spacing: Style.space(5)
+            Text {
+              text: Commons.I18n.t("weather.humid")
+              textFormat: Text.PlainText
+              color: Qt.darker(root.bar.foreground, 1.5)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.letterSpacing: 1
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: root.secondaryHumidity
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.title
+            }
+          }
+        }
+
+        ForecastList {
+          visible: root.secondaryForecastDays.length > 0
+          width: parent.width
+          days: root.secondaryForecastDays
+          panel: root
         }
       }
     }
