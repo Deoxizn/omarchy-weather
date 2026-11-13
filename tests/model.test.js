@@ -78,3 +78,8 @@ test("wttrLocationQuery covers the secondary shapes", () => {
   assert.equal(Model.wttrLocationQuery("", 32.22, -110.97), "32.22,-110.97")
   assert.equal(Model.wttrLocationQuery("", null, null), "")
 })
+
+test("the manifest id is pizza.dirty.weather", () => {
+  const manifest = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "..", "manifest.json"), "utf8"))
+  assert.equal(manifest.id, "pizza.dirty.weather")
+})

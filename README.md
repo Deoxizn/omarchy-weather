@@ -1,7 +1,7 @@
 # My Weather
 
 Weather pill with a detail popup. A fork of stock `omarchy.weather`,
-renamed `devi.weather`.
+renamed `pizza.dirty.weather`.
 
 ## Install
 
@@ -14,7 +14,7 @@ If you installed it from local files instead of GitHub, remove it first so
 it tracks the repo:
 
 ```sh
-omarchy plugin remove devi.weather
+omarchy plugin remove pizza.dirty.weather
 omarchy plugin add https://github.com/Deoxizn/omarchy-weather.git --enable
 ```
 
@@ -56,9 +56,9 @@ It fetches on its own, so a slow second city never blocks the main view.
 ## Settings
 
 ```sh
-omarchy bar set devi.weather unit imperial
-omarchy bar set devi.weather refreshMinutes 30 --json
-omarchy bar set devi.weather secondaryLocation Tucson
+omarchy bar set pizza.dirty.weather unit imperial
+omarchy bar set pizza.dirty.weather refreshMinutes 30 --json
+omarchy bar set pizza.dirty.weather secondaryLocation Tucson
 ```
 
 - **unit** — `imperial` or `metric`. Empty means automatic: imperial for
