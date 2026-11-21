@@ -46,6 +46,34 @@ BarWidget {
     if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
   }
 
+  // Write the weather settings the same way the bar's settings window
+  // does: updateEntryInline replaces rather than merges, so the existing
+  // settings are copied first and the patch applied on top. The shell.json
+  // write comes back through the bar as the same value, so the bar's
+  // window and the standalone popup stay in sync: both write to the same
+  // layout entry. The id is the manifest id, pizza.dirty.weather: this
+  // widget's moduleName is still the pre-rename omarchy.weather, so
+  // root.moduleName is not usable here.
+  function setWeather(patch) {
+    if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return false
+    var entry = { id: "pizza.dirty.weather" }
+    var current = root.settings || {}
+    for (var key in current) if (key !== "id") entry[key] = current[key]
+    for (var patchName in patch) entry[patchName] = patch[patchName]
+    root.settings = entry
+    return root.bar.shell.updateEntryInline("pizza.dirty.weather", entry)
+  }
+
+  // Standalone settings: right-click the weather widget opens the
+  // WeatherSettings window. It is the same controls as the bar's settings
+  // window Weather tab, so the plugin is usable on its own (stock bar, no
+  // Nyxiri bar), where there is no bar settings window.
+  property bool settingsOpen: false
+
+  function toggleSettings() {
+    root.settingsOpen = !root.settingsOpen
+  }
+
   visible: panelLoader.item && panelLoader.item.label !== ""
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -61,6 +89,18 @@ BarWidget {
     onLoaded: {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
+    }
+  }
+
+  // The standalone settings window, one per bar surface. It opens on
+  // right-click and closes from its own Close button or Escape.
+  WeatherSettings {
+    bar: root.bar
+    hostWidget: root
+    visible: root.settingsOpen
+    screen: {
+      var window = root.QsWindow.window
+      return window ? window.screen : null
     }
   }
 
@@ -81,7 +121,9 @@ BarWidget {
 
     onPressed: function(b) {
       if (!root.bar) return
-      if (b === Qt.RightButton) root.bar.run("omarchy-notification-send \"$(omarchy-weather-status)\"")
+      // Right-click opens the standalone settings window; it no longer
+      // sends the weather-status notification.
+      if (b === Qt.RightButton) { root.toggleSettings(); return }
       else if (b === Qt.MiddleButton) root.refresh()
       else root.togglePanel()
     }
