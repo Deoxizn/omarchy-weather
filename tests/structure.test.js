@@ -20,8 +20,8 @@ test("the manifest declares the Nyxiri weather bar widget", () => {
 test("the widget writes weather settings through updateEntryInline", () => {
   const widget = read("BarWidget.qml")
   // The bar's settings window writes to the same entry id, so the two
-  // stay in sync. The id is the manifest id: this widget's moduleName is
-  // still the pre-rename omarchy.weather, so it is not usable here.
+  // stay in sync. The id is the manifest id, pizza.dirty.weather, which
+  // is also this widget's moduleName since the Hexciri rename.
   assert.match(widget, /function setWeather\(patch\)/)
   assert.match(widget, /var entry = \{ id: "pizza\.dirty\.weather" \}/)
   assert.match(widget, /root\.bar\.shell\.updateEntryInline\("pizza\.dirty\.weather", entry\)/)

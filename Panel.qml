@@ -8,8 +8,8 @@ import "Model.js" as Model
 
 Panel {
   id: root
-  moduleName: "omarchy.weather"
-  ipcTarget: "omarchy.weather"
+  moduleName: "pizza.dirty.weather"
+  ipcTarget: "pizza.dirty.weather"
   manageIpc: false
 
   property var anchorItem: null
@@ -115,7 +115,7 @@ Panel {
   }
 
   property FileView locationFile: FileView {
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/settings/weather.json"
+    path: Quickshell.env("HOME") + "/.local/state/hexciri/settings/weather.json"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
@@ -347,6 +347,9 @@ Panel {
     if (savingLocation && savingLocationQueryStarted) cancelEditingLocation()
   }
 
+  // Hexciri: no hexciri-weather-location ships in the forked shell (not
+  // in fork-shell.sh is_allowed_bin), so location save is a no-op on
+  // Hexciri until Hexciri ships it; the call below stays omarchy-*.
   function persistLocation(name, latitude, longitude) {
     if (name && latitude !== null && longitude !== null)
       locationSaveProc.command = ["omarchy-weather-location", "--set", name, latitude + "," + longitude]

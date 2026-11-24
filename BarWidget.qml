@@ -4,7 +4,7 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "omarchy.weather"
+  moduleName: "pizza.dirty.weather"
 
   function injectPanel() {
     var target = panelLoader.item
@@ -51,9 +51,8 @@ BarWidget {
   // settings are copied first and the patch applied on top. The shell.json
   // write comes back through the bar as the same value, so the bar's
   // window and the standalone popup stay in sync: both write to the same
-  // layout entry. The id is the manifest id, pizza.dirty.weather: this
-  // widget's moduleName is still the pre-rename omarchy.weather, so
-  // root.moduleName is not usable here.
+  // layout entry. The id is the manifest id, pizza.dirty.weather, which
+  // is now also this widget's moduleName (renamed from omarchy.weather).
   function setWeather(patch) {
     if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return false
     var entry = { id: "pizza.dirty.weather" }
