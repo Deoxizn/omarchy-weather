@@ -10,8 +10,9 @@ import qs.Ui
 // Standalone weather settings. A floating layer-shell window with the
 // same controls as the bar's settings window Weather tab, for when the
 // weather plugin runs on its own (stock Omarchy bar, no Nyxiri bar),
-// where there is no bar settings window to open. Opened by right-clicking
-// the weather widget; the widget's toggleSettings() flips it.
+// where there is no bar settings window to open. Opened by
+// Shift+right-clicking the weather widget (a plain right-click sends the
+// weather-status notification); the widget's toggleSettings() flips it.
 // The one control writes through hostWidget.setWeather(), which is the
 // same updateEntryInline the bar's window uses, so the two stay in sync:
 // both write to the same weather layout entry. When the bar IS installed,
@@ -215,6 +216,14 @@ PanelWindow {
         bordered: true
         foreground: popup.bar.foreground
         onClicked: popup.closeSettings()
+      }
+
+      BodyText {
+        width: body.width
+        text: "Right-click the pill sends the weather notification; Shift+right-click opens this window."
+        color: Qt.darker(popup.bar.foreground, 1.4)
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
       }
     }
   }

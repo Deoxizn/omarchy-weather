@@ -13,7 +13,8 @@ omarchy restart shell
 
 - Click the pill: opens the forecast popup.
 - Middle-click: refresh now.
-- Right-click: open settings.
+- Right-click: send the weather-status notification.
+- Shift+right-click: open settings.
 - Click the place name in the popup: search for a city.
 
 ## Location
@@ -30,7 +31,7 @@ omarchy weather location --clear
 
 ## Second city
 
-A second city under the main forecast, with its own 10-day row. Set **Secondary location** to a name (`Tucson`) or `lat,lon` (`32.22,-110.97`): right-click the pill to open the standalone settings popup, or use the bar settings window's Weather tab. Leave it empty for none.
+A second city under the main forecast, with its own 10-day row. Set **Secondary location** to a name (`Tucson`) or `lat,lon` (`32.22,-110.97`): Shift+right-click the pill to open the standalone settings popup, or use the bar settings window's Weather tab. Leave it empty for none.
 
 ## Settings
 

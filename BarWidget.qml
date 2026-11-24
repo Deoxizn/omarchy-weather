@@ -63,10 +63,13 @@ BarWidget {
     return root.bar.shell.updateEntryInline("pizza.dirty.weather", entry)
   }
 
-  // Standalone settings: right-click the weather widget opens the
-  // WeatherSettings window. It is the same controls as the bar's settings
-  // window Weather tab, so the plugin is usable on its own (stock bar, no
-  // Nyxiri bar), where there is no bar settings window.
+  // Standalone settings: Shift+right-click the weather widget opens
+  // the WeatherSettings window. It is the same controls as the bar's
+  // settings window Weather tab, so the plugin is usable on its own
+  // (stock bar, no Nyxiri bar), where there is no bar settings window.
+  // A plain right-click sends the weather-status notification again
+  // (2026-11-24, Devi: the settings popup stole the right-click); it
+  // is not a format cycle, the clock is the one that cycles formats.
   property bool settingsOpen: false
 
   function toggleSettings() {
@@ -92,7 +95,7 @@ BarWidget {
   }
 
   // The standalone settings window, one per bar surface. It opens on
-  // right-click and closes from its own Close button or Escape.
+  // Shift+right-click and closes from its own Close button or Escape.
   WeatherSettings {
     bar: root.bar
     hostWidget: root
@@ -118,11 +121,16 @@ BarWidget {
     // Tooltip suppressed because the panel is the detail view.
     tooltipText: ""
 
-    onPressed: function(b) {
+    // WidgetButton forwards the click modifiers (fork patch,
+    // hexciri v2/install.sh), so Shift+right-click is distinguishable
+    // from a plain right-click. Plain right-click sends the
+    // weather-status notification; Shift+right-click opens settings.
+    onPressed: function(b, modifiers) {
       if (!root.bar) return
-      // Right-click opens the standalone settings window; it no longer
-      // sends the weather-status notification.
-      if (b === Qt.RightButton) { root.toggleSettings(); return }
+      if (b === Qt.RightButton) {
+        if (modifiers & Qt.ShiftModifier) { root.toggleSettings(); return }
+        root.bar.run("hexciri-notification-send \"$(hexciri-weather-status)\""); return
+      }
       else if (b === Qt.MiddleButton) root.refresh()
       else root.togglePanel()
     }

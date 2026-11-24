@@ -29,16 +29,23 @@ test("the widget writes weather settings through updateEntryInline", () => {
   assert.match(widget, /for \(var patchName in patch\) entry\[patchName\] = patch\[patchName\]/)
 })
 
-test("right-click opens the standalone settings window", () => {
+test("right-click sends the weather notification, Shift+right-click opens settings", () => {
   const widget = read("BarWidget.qml")
   assert.match(widget, /property bool settingsOpen: false/)
   assert.match(widget, /function toggleSettings\(\)/)
   assert.match(widget, /root\.settingsOpen = !root\.settingsOpen/)
   assert.match(widget, /WeatherSettings \{/)
   assert.match(widget, /visible: root\.settingsOpen/)
-  assert.match(widget, /if \(b === Qt\.RightButton\) \{ root\.toggleSettings\(\); return \}/)
-  // Right-click no longer sends the weather-status notification.
-  assert.doesNotMatch(widget, /omarchy-weather-status/)
+  // 2026-11-24, Devi: the settings popup stole the right-click. A plain
+  // right-click sends the weather-status notification again (upstream
+  // behaviour); Shift+right-click opens the standalone settings window.
+  // WidgetButton forwards the click modifiers (fork patch), so the
+  // handler can tell them apart.
+  assert.match(widget, /onPressed: function\(b, modifiers\)/)
+  assert.match(widget, /if \(modifiers & Qt\.ShiftModifier\) \{ root\.toggleSettings\(\); return \}/)
+  assert.match(widget, /hexciri-notification-send/)
+  assert.match(widget, /hexciri-weather-status/)
+  assert.doesNotMatch(widget, /if \(b === Qt\.RightButton\) \{ root\.toggleSettings\(\); return \}/)
   // Left-click still toggles the forecast panel, middle-click refreshes.
   assert.match(widget, /else if \(b === Qt\.MiddleButton\) root\.refresh\(\)/)
   assert.match(widget, /else root\.togglePanel\(\)/)
